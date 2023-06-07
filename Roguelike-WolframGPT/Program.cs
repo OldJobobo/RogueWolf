@@ -80,7 +80,7 @@ namespace SimpleRoguelike
                     roomX = random.Next(1, grid.GetLength(0) - 10);
                     roomY = random.Next(1, grid.GetLength(1) - 10);
                     roomWidth = random.Next(5, 15);
-                    roomHeight = random.Next(4, 8);
+                    roomHeight = random.Next(4, 8 );
                 }
                 while (DoesRoomOverlap(roomX, roomY, roomWidth, roomHeight));
 
