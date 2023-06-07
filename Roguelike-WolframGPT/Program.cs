@@ -15,6 +15,7 @@ namespace SimpleRoguelike
         // Create a single instance of Random with a seed value based on the current time in ticks
         static Random random = new Random((int)DateTime.Now.Ticks & 0x0000FFFF);
 
+        static List<Tuple<int, int>> enemies = new List<Tuple<int, int>>();
 
 
         static void Main(string[] args)
@@ -22,22 +23,29 @@ namespace SimpleRoguelike
             // Set the console window's buffer height to be equal to its window height
             Console.BufferHeight = Console.WindowHeight;
 
-
-            ConsoleKeyInfo keyInfo;
             InitializeGrid();
             Console.CursorVisible = false;
-
 
             startX = (Console.WindowWidth - grid.GetLength(0)) / 2;
             startY = (Console.WindowHeight - grid.GetLength(1)) / 2;
 
             MovePlayer(0, 0);  // Update the visibility grid
 
+            ConsoleKeyInfo keyInfo;
             do
             {
                 PrintGrid();
+
+                // Clear the input buffer
+                while (Console.KeyAvailable)
+                {
+                    Console.ReadKey(true);
+                }
+
+                // Read the next key press
                 keyInfo = Console.ReadKey(true);
 
+                // Process the key press
                 switch (keyInfo.Key)
                 {
                     case ConsoleKey.UpArrow:
@@ -71,8 +79,8 @@ namespace SimpleRoguelike
                     // Generate random position and size for the room
                     roomX = random.Next(1, grid.GetLength(0) - 10);
                     roomY = random.Next(1, grid.GetLength(1) - 10);
-                    roomWidth = random.Next(5, 10);
-                    roomHeight = random.Next(5, 10);
+                    roomWidth = random.Next(5, 15);
+                    roomHeight = random.Next(4, 8);
                 }
                 while (DoesRoomOverlap(roomX, roomY, roomWidth, roomHeight));
 
@@ -80,46 +88,92 @@ namespace SimpleRoguelike
                 CreateRoom(roomX, roomY, roomWidth, roomHeight);
 
                 // Store the center point of the room
-                roomCenters.Add(Tuple.Create(roomX + roomWidth / 2, roomY + roomHeight / 2));
+                int centerX = roomX + roomWidth / 2;
+                int centerY = roomY + roomHeight / 2;
+                roomCenters.Add(Tuple.Create(centerX, centerY));
+
+                // Spawn an enemy in the center of the room, except for the first room
+                if (i > 0)
+                {
+                    SpawnEnemy(centerX, centerY);
+                }
+
+                // If this is not the first room, create a tunnel to a random existing room
+                if (i > 0)
+                {
+                    int otherRoomIndex = random.Next(i); // Random index of an existing room
+                    CreateTunnel(roomCenters[i].Item1, roomCenters[i].Item2, roomCenters[otherRoomIndex].Item1, roomCenters[otherRoomIndex].Item2);
+                }
             }
 
             // Set the player's initial position to be within the first room
             playerX = roomCenters[0].Item1;
             playerY = roomCenters[0].Item2;
-
-            // Create tunnels between the rooms
-            for (int i = 0; i < roomCenters.Count - 1; i++)
-            {
-                CreateTunnel(roomCenters[i].Item1, roomCenters[i].Item2, roomCenters[i + 1].Item1, roomCenters[i + 1].Item2);
-            }
         }
+
+
 
 
         static void CreateRoom(int x, int y, int width, int height)
         {
-            for (int i = y; i < y + height; i++)
+            // Draw the floor of the room
+            for (int i = y + 1; i < y + height - 1; i++)
             {
-                for (int j = x; j < x + width; j++)
+                for (int j = x + 1; j < x + width - 1; j++)
                 {
                     grid[j, i] = '.';
                 }
             }
+
+            // Draw the walls of the room
+            for (int i = y; i < y + height; i++)
+            {
+                for (int j = x; j < x + width; j++)
+                {
+                    if (i == y || i == y + height - 1 || j == x || j == x + width - 1)
+                    {
+                        grid[j, i] = '#';
+                    }
+                }
+            }
         }
 
-        static void CreateTunnel(int x1, int y1, int x2, int y2)
+
+        static void CreateTunnel(int startX, int startY, int endX, int endY)
         {
-            // Create a horizontal tunnel from x1 to x2
-            for (int x = Math.Min(x1, x2); x <= Math.Max(x1, x2); x++)
+            // Draw the floor of the tunnel
+            for (int x = Math.Min(startX, endX); x <= Math.Max(startX, endX); x++)
             {
-                grid[x, y1] = '.';
+                grid[x, startY] = '.';
+            }
+            for (int y = Math.Min(startY, endY); y <= Math.Max(startY, endY); y++)
+            {
+                grid[endX, y] = '.';
             }
 
-            // Create a vertical tunnel from y1 to y2
-            for (int y = Math.Min(y1, y2); y <= Math.Max(y1, y2); y++)
+            // Draw the walls of the tunnel
+            for (int x = Math.Min(startX, endX) - 1; x <= Math.Max(startX, endX) + 1; x++)
             {
-                grid[x2, y] = '.';
+                for (int y = startY - 1; y <= startY + 1; y++)
+                {
+                    if (x >= 0 && x < grid.GetLength(0) && y >= 0 && y < grid.GetLength(1) && grid[x, y] != '.')
+                    {
+                        grid[x, y] = '#';
+                    }
+                }
+            }
+            for (int y = Math.Min(startY, endY) - 1; y <= Math.Max(startY, endY) + 1; y++)
+            {
+                for (int x = endX - 1; x <= endX + 1; x++)
+                {
+                    if (x >= 0 && x < grid.GetLength(0) && y >= 0 && y < grid.GetLength(1) && grid[x, y] != '.')
+                    {
+                        grid[x, y] = '#';
+                    }
+                }
             }
         }
+
 
 
 
@@ -131,42 +185,13 @@ namespace SimpleRoguelike
             {
                 for (int x = 0; x < grid.GetLength(0); x++)
                 {
-                    grid[x, y] = '#';
+                    grid[x, y] = ' ';
                 }
             }
 
-            /*
-             // Create two random rooms
-             int room1X = random.Next(grid.GetLength(0) / 4, 3 * grid.GetLength(0) / 4);
-             int room1Y = random.Next(grid.GetLength(1) / 4, 3 * grid.GetLength(1) / 4);
-
-             int room1Width = random.Next(5, Math.Min(10, grid.GetLength(0) / 2));
-             int room1Height = random.Next(5, Math.Min(10, grid.GetLength(1) / 2));
-
-             int room2X = random.Next(grid.GetLength(0) / 4, 3 * grid.GetLength(0) / 4);
-             int room2Y = random.Next(grid.GetLength(1) / 4, 3 * grid.GetLength(1) / 4);
-
-             int room2Width = random.Next(5, Math.Min(10, grid.GetLength(0) - room2X));
-             int room2Height = random.Next(5, Math.Min(10, grid.GetLength(1) - room2Y));
-
-             CreateRoom(room1X, room1Y, room1Width, room1Height);
-             CreateRoom(room2X, room2Y, room2Width, room2Height);
-
-             // Set the player's initial position to be within the first room
-             playerX = room1X + room1Width / 2;
-             playerY = room1Y + room1Height / 2;
-
-             // Create a tunnel between the rooms
-             int tunnelStartX = room1X + room1Width / 2;
-             int tunnelStartY = room1Y + room1Height / 2;
-             int tunnelEndX = room2X + room2Width / 2;
-             int tunnelEndY = room2Y + room2Height / 2;
-
-             CreateTunnel(tunnelStartX, tunnelStartY, tunnelEndX, tunnelEndY);
-            */
-
+            
             // Create a number of rooms
-            CreateRooms(6);
+            CreateRooms(8);
 
             grid[playerX, playerY] = '@';
         }
@@ -178,7 +203,7 @@ namespace SimpleRoguelike
                 for (int j = x; j < x + width; j++)
                 {
                     // If the proposed room would overlap with an existing room or tunnel, return true
-                    if (grid[j, i] == '.')
+                    if (grid[j, i] == '.' || grid[j, i] == '#')
                     {
                         return true;
                     }
@@ -192,8 +217,7 @@ namespace SimpleRoguelike
 
         static void PrintGrid()
         {
-            Console.SetCursorPosition(0, 0);
-
+            Console.SetCursorPosition(startX, startY);
             for (int y = 0; y < grid.GetLength(1); y++)
             {
                 for (int x = 0; x < grid.GetLength(0); x++)
@@ -207,8 +231,22 @@ namespace SimpleRoguelike
                         Console.Write(' ');
                     }
                 }
+               
             }
+
+            // Draw the enemies
+            foreach (var enemy in enemies)
+            {
+                if (visibilityGrid[enemy.Item1, enemy.Item2])
+                {
+                    Console.SetCursorPosition(startX + enemy.Item1, startY + enemy.Item2);
+                    Console.Write('&');
+                }
+            }
+
+          
         }
+
 
         static void UpdateVisibility()
         {
@@ -268,11 +306,23 @@ namespace SimpleRoguelike
 
                 UpdateVisibility();
 
-              
+                // Redraw the enemies
+                foreach (var enemy in enemies)
+                {
+                    grid[enemy.Item1, enemy.Item2] = '&';
+                }
             }
         }
 
 
+        static void SpawnEnemy(int x, int y)
+        {
+            // Spawn an enemy at the given position
+            grid[x, y] = '&';
+            enemies.Add(Tuple.Create(x, y));
+
+           
+        }
 
 
 
