@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Roguelike_WolframGPT;
+using System;
+using System.Numerics;
 
 namespace SimpleRoguelike
 {
@@ -9,14 +11,21 @@ namespace SimpleRoguelike
         static bool[,] visibilityGrid = new bool[Console.WindowWidth, Console.WindowHeight];
         static int playerX = 10;
         static int playerY = 10;
+
+        // Initialize the player object
+        public static Player player = new Player(playerX, playerY, 100, 10, 5);
+
         static int startX, startY;
         static int visibilityRadius = 5;
+
+        // Create a list to store the console messages
+        static List<string> consoleMessages = new List<string>();
 
         // Create a single instance of Random with a seed value based on the current time in ticks
         static Random random = new Random((int)DateTime.Now.Ticks & 0x0000FFFF);
 
-        static List<Tuple<int, int>> enemies = new List<Tuple<int, int>>();
-
+        //static List<Tuple<int, int>> enemies = new List<Tuple<int, int>>();
+        static List<Enemy> enemies = new List<Enemy>();
 
         static void Main(string[] args)
         {
@@ -30,6 +39,8 @@ namespace SimpleRoguelike
             startY = (Console.WindowHeight - grid.GetLength(1)) / 2;
 
             MovePlayer(0, 0);  // Update the visibility grid
+
+            PrintToConsole("Hello World!");
 
             ConsoleKeyInfo keyInfo;
             do
@@ -79,7 +90,7 @@ namespace SimpleRoguelike
                     // Generate random position and size for the room
                     roomX = random.Next(1, grid.GetLength(0) - 10);
                     roomY = random.Next(1, grid.GetLength(1) - 10);
-                    roomWidth = random.Next(5, 15);
+                    roomWidth = random.Next(5, 14);
                     roomHeight = random.Next(4, 8 );
                 }
                 while (DoesRoomOverlap(roomX, roomY, roomWidth, roomHeight));
@@ -181,7 +192,7 @@ namespace SimpleRoguelike
         {
 
 
-            for (int y = 0; y < grid.GetLength(1); y++)
+            for (int y = 0; y < grid.GetLength(1) - 4; y++)
             {
                 for (int x = 0; x < grid.GetLength(0); x++)
                 {
@@ -189,11 +200,46 @@ namespace SimpleRoguelike
                 }
             }
 
-            
+            // Fill the game console area with spaces
+            for (int y = grid.GetLength(1) - 4; y < grid.GetLength(1); y++)
+            {
+                for (int x = 0; x < grid.GetLength(0); x++)
+                {
+                    grid[x, y] = ' ';
+                }
+            }
+
+            // Create the border of the game console
+            for (int x = 0; x < grid.GetLength(0); x++)
+            {
+                grid[x, grid.GetLength(1) - 4] = '-';
+            }
+
             // Create a number of rooms
             CreateRooms(8);
 
-            grid[playerX, playerY] = '@';
+           
+
+            grid[player.X, player.Y] = '@';
+        }
+
+        static void PrintToConsole(string message)
+        {
+            // Add the new message to the list
+            consoleMessages.Add(message);
+
+            // Keep only the last 3 messages to fit in the console
+            while (consoleMessages.Count > 3)
+            {
+                consoleMessages.RemoveAt(0);
+            }
+
+            // Print the messages to the console
+            for (int i = 0; i < consoleMessages.Count; i++)
+            {
+                Console.SetCursorPosition(0, grid.GetLength(1) - 3 + i);
+                Console.Write(consoleMessages[i].PadRight(grid.GetLength(0)));
+            }
         }
 
         static bool DoesRoomOverlap(int x, int y, int width, int height)
@@ -218,7 +264,7 @@ namespace SimpleRoguelike
         static void PrintGrid()
         {
             Console.SetCursorPosition(startX, startY);
-            for (int y = 0; y < grid.GetLength(1); y++)
+            for (int y = 0; y < grid.GetLength(1) - 4; y++)
             {
                 for (int x = 0; x < grid.GetLength(0); x++)
                 {
@@ -237,14 +283,20 @@ namespace SimpleRoguelike
             // Draw the enemies
             foreach (var enemy in enemies)
             {
-                if (visibilityGrid[enemy.Item1, enemy.Item2])
+                if (visibilityGrid[enemy.X, enemy.Y])
                 {
-                    Console.SetCursorPosition(startX + enemy.Item1, startY + enemy.Item2);
+                    Console.SetCursorPosition(startX + enemy.X, startY + enemy.Y);
                     Console.Write('&');
                 }
             }
 
-          
+
+            // Draw the border for the console
+            for (int x = 0; x < grid.GetLength(0); x++)
+            {
+                Console.SetCursorPosition(startX + x, startY + grid.GetLength(1) - 4);
+                Console.Write('-');
+            }
         }
 
 
@@ -289,8 +341,8 @@ namespace SimpleRoguelike
             int newX = playerX + dx;
             int newY = playerY + dy;
 
-            // Check if the new position is a wall
-            if (grid[newX, newY] != '#')
+            // Check if the new position is a wall or an enemy
+            if (grid[newX, newY] != '#' && grid[newX, newY] != '&')
             {
                 // Clear the old player position
                 grid[playerX, playerY] = '.';
@@ -303,25 +355,42 @@ namespace SimpleRoguelike
                 grid[playerX, playerY] = '@';
 
                 // Update the visibility grid
-
                 UpdateVisibility();
 
                 // Redraw the enemies
                 foreach (var enemy in enemies)
                 {
-                    grid[enemy.Item1, enemy.Item2] = '&';
+                    grid[enemy.X, enemy.Y] = '&';
                 }
+
+                // Make the game console always visible
+                for (int y = grid.GetLength(1) - 4; y < grid.GetLength(1); y++)
+                {
+                    for (int x = 0; x < grid.GetLength(0); x++)
+                    {
+                        visibilityGrid[x, y] = true;
+                    }
+                }
+            }
+            else if (grid[newX, newY] == '&')
+            {
+                // Print a message to the game console if the player tries to move into an enemy
+                PrintToConsole("You cannot move into an enemy!");
             }
         }
 
 
+
         static void SpawnEnemy(int x, int y)
         {
-            // Spawn an enemy at the given position
-            grid[x, y] = '&';
-            enemies.Add(Tuple.Create(x, y));
+            // Create a new enemy with random stats
+            Enemy enemy = new Enemy(x, y, random.Next(10, 20), random.Next(1, 5), random.Next(1, 5));
 
-           
+            // Add the enemy to the list of enemies
+            enemies.Add(enemy);
+
+            // Draw the enemy on the grid
+            grid[x, y] = '&';
         }
 
 
