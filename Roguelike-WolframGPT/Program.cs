@@ -88,10 +88,17 @@ namespace SimpleRoguelike
                 do
                 {
                     // Generate random position and size for the room
-                    roomX = random.Next(1, grid.GetLength(0) - 10);
-                    roomY = random.Next(1, grid.GetLength(1) - 10);
-                    roomWidth = random.Next(5, 14);
-                    roomHeight = random.Next(4, 8 );
+                    // roomX = random.Next(1, grid.GetLength(0) - 10);
+                    // roomY = random.Next(1, grid.GetLength(1) - 10);
+
+                    roomWidth = random.Next(5, 20);
+                    roomHeight = random.Next(5, 8);
+                    
+                    roomX = random.Next(1, grid.GetLength(0) - roomWidth - 1);
+                    roomY = random.Next(1, grid.GetLength(1) - roomHeight - 1);
+
+
+                  
                 }
                 while (DoesRoomOverlap(roomX, roomY, roomWidth, roomHeight));
 
@@ -249,7 +256,7 @@ namespace SimpleRoguelike
                 for (int j = x; j < x + width; j++)
                 {
                     // If the proposed room would overlap with an existing room or tunnel, return true
-                    if (grid[j, i] == '.' || grid[j, i] == '#')
+                    if (grid[j, i] == '.' || grid[j, i] == '#' || grid[j, i] == '&')
                     {
                         return true;
                     }
